@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>All Products</title>
+    <link
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <h2 class="mt-4">All Products</h2>
+    <br />
+    <!-- Search Bar with Back Button -->
+    <div class="d-flex align-items-center justify-content-between">
+      <!-- Back Button -->
+      <button id="backButton" class="btn btn-primary btn-sm" onclick="goBack()">
+        Back
+      </button>
+
+      <!-- Styled Dropdown -->
+      <div class="mb-3">
+        <label for="categoryDropdown" class="form-label"
+          >Select Category:</label
+        >
+        <select
+          id="categoryDropdown"
+          class="form-select"
+          onchange="navigateCategory(this.value)"
+        >
+          <option value="" disabled selected>Select Category</option>
+          <!-- Options will be inserted here dynamically -->
+          <option value="View All Products">View All Products</option>
+          <!-- Corrected the value here -->
+        </select>
+      </div>
+
+      <!-- Search Bar -->
+      <form id="searchForm" class="d-flex align-items-center">
+        <input
+          id="searchInput"
+          type="text"
+          name="query"
+          autocomplete="off"
+          class="form-control form-control-sm me-2"
+          style="width: 500px"
+          placeholder="Search"
+        />
+      </form>
+    </div>
+    <br />
+    <table class="table table-striped" id="productTable">
+      <thead>
+        <tr>
+          <th>Product ID</th>
+          <th>Product Name</th>
+          <th>Brand Name</th>
+          <th>Category</th>
+          <th>MRP Price</th>
+          <th>Discount Price</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody id="productTableBody">
+        <!-- Product data will be inserted here dynamically -->
+      </tbody>
+    </table>
+    <div id="paginationButtons"></div>
+    <script src="script.js"></script>
+    <script>
+      function renderProducts(products) {
+        const productTableBody = document.getElementById("productTableBody");
+        productTableBody.innerHTML = ""; // Clear existing table body
+
+        products.forEach((product) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+          <td>${product.id}</td>
+          <td>${product.product_name}</td>
+          <td>${product.brand_name}</td>
+          <td>${product.category_name}</td>
+          <td>${product.MRP_PRICE}</td>
+          <td>${product.discount_price}</td>
+          <td>${new Date(product.date_created).toLocaleDateString()}</td>
+        `;
+          productTableBody.appendChild(row);
+        });
+      }
+
+      function renderPaginationButtons(currentPage, totalPages) {
+        let buttonsHTML = `
+        <div class="d-flex justify-content-center">
+          <nav aria-label='Page navigation'>
+            <ul class='pagination'>`;
+
+        if (currentPage > 1) {
+          buttonsHTML += `<li class='page-item'><button class='page-link btn btn-primary btn-sm' onclick='handlePageClick(${
+            currentPage - 1
+          })'>Previous</button></li>`;
+        }
+
+        for (let i = 1; i <= totalPages; i++) {
+          const activeClass = i === currentPage ? "active" : "";
+          buttonsHTML += `<li class='page-item ${activeClass}'><button class='page-link btn btn-primary btn-sm' onclick='handlePageClick(${i})'>${i}</button></li>`;
+        }
+
+        if (currentPage < totalPages) {
+          buttonsHTML += `<li class='page-item'><button class='page-link btn btn-primary btn-sm' onclick='handlePageClick(${
+            currentPage + 1
+          })'>Next</button></li>`;
+        }
+
+        buttonsHTML += "</ul></nav></div>";
+        return buttonsHTML;
+      }
+
+      function handlePageClick(page) {
+        fetch(`http://192.168.55.196:5000/category/100/product-all?page=${page}`)
+          .then((response) => response.json())
+          .then((data) => {
+            renderProducts(data.products);
+            const paginationButtons =
+              document.getElementById("paginationButtons");
+            paginationButtons.innerHTML = renderPaginationButtons(
+              data.currentPage,
+              data.totalPages
+            );
+
+            // Update the URL with the current page number
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set("page", page);
+            window.history.replaceState(null, null, `?${urlParams.toString()}`);
+          })
+          .catch((error) => {
+            console.error("Error fetching product data:", error);
+          });
+      }
+
+      function getCategoryIdFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get("categoryId");
+      }
+
+      // Define a function to extract the page number from the URL
+      function getPageNumberFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get("page") || 1;
+      }
+
+      // Call fetchAndPopulateProducts with the page number from the URL
+      function initializePage() {
+        const categoryId = getCategoryIdFromURL();
+        const page = getPageNumberFromURL();
+        fetchCategories();
+        if (!categoryId || categoryId === "View All Products") {
+          fetchAndPopulateProducts(null, page);
+        } else {
+          fetchAndPopulateProducts(categoryId, page);
+        }
+      }
+
+      // Call initializePage function when the page loads
+      window.onload = initializePage;
+
+      // Fetch categories from the server
+      function fetchCategories() {
+        const categoryId = getCategoryIdFromURL();
+        fetch(`http://192.168.55.196:5000/category/${categoryId}`)
+          .then((response) => response.json())
+          .then((data) => {
+            const categories = data.categories;
+            const categoryDropdown =
+              document.getElementById("categoryDropdown");
+            categories.forEach((category) => {
+              const option = document.createElement("option");
+              option.value = category.category_id;
+              option.textContent = category.category_name;
+              categoryDropdown.appendChild(option);
+            });
+            // Set the selected category if categoryId is available
+            if (categoryId) {
+              categoryDropdown.value = categoryId;
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching categories:", error);
+          });
+      }
+
+      function fetchAndPopulateProducts(categoryId, page = 1) {
+        if (categoryId === null || categoryId === "View All Products") {
+          fetch(`http://192.168.55.196:5000/category/100/product-all?page=${page}`)
+            .then((response) => response.json())
+            .then((data) => {
+              renderProducts(data.products);
+              const paginationButtons =
+                document.getElementById("paginationButtons");
+              paginationButtons.innerHTML = renderPaginationButtons(
+                data.currentPage,
+                data.totalPages
+              );
+
+              // Update the URL with the current page number
+              const urlParams = new URLSearchParams("?page=1");
+              urlParams.set("page", page);
+              window.history.replaceState(
+                null,
+                null,
+                `?${urlParams.toString()}`
+              );
+            })
+            .catch((error) => {
+              console.error("Error fetching product data:", error);
+            });
+        } else {
+          fetch(`http://192.168.55.196:5000/category/${categoryId}?page=${page}`)
+            .then((response) => response.json())
+            .then((data) => {
+              const productTableBody =
+                document.getElementById("productTableBody");
+              productTableBody.innerHTML = ""; // Clear existing data
+
+              data.products.forEach((product) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                <td>${product.id}</td>
+                <td>${product.product_name}</td>
+                <td>${product.brand_name}</td>
+                <td>${product.category_name}</td>
+                <td>$${product.MRP_PRICE}</td>
+                <td>$${product.discount_price}</td>
+                <td>${new Date(product.date_created).toLocaleDateString()}</td>
+              `;
+                productTableBody.appendChild(row);
+              });
+
+              const paginationButtons =
+                document.getElementById("paginationButtons");
+              paginationButtons.innerHTML = renderPaginationButtons2(
+                categoryId,
+                data.currentPage,
+                data.totalPages
+              );
+            })
+            .catch((error) => {
+              console.error("Error fetching products:", error);
+            });
+        }
+      }
+
+      function navigateCategory(categoryId) {
+        if (categoryId === "View All Products") {
+          fetchAndPopulateProducts(null, 1); // Pass null as categoryId for all products
+        } else {
+          window.location.href = `?categoryId=${categoryId}`;
+        }
+      }
+
+      function renderPaginationButtons2(categoryId, currentPage, totalPages) {
+        let buttonsHTML = `
+        <div class="d-flex justify-content-center">
+          <nav aria-label='Page navigation'>
+            <ul class='pagination'>`;
+
+        if (currentPage > 1) {
+          buttonsHTML += `<li class='page-item'><button class='page-link btn btn-primary btn-sm' onclick='fetchAndPopulateProducts("${categoryId}", ${
+            currentPage - 1
+          })'>Previous</button></li>`;
+        }
+
+        for (let i = 1; i <= totalPages; i++) {
+          const activeClass = i === currentPage ? "active" : "";
+          buttonsHTML += `<li class='page-item ${activeClass}'><button class='page-link btn btn-primary btn-sm' onclick='fetchAndPopulateProducts("${categoryId}", ${i})'>${i}</button></li>`;
+        }
+
+        if (currentPage < totalPages) {
+          buttonsHTML += `<li class='page-item'><button class='page-link btn btn-primary btn-sm' onclick='fetchAndPopulateProducts("${categoryId}", ${
+            currentPage + 1
+          })'>Next</button></li>`;
+        }
+
+        buttonsHTML += "</ul></nav></div>";
+        return buttonsHTML;
+      }
+    </script>
+  </body>
+</html>
